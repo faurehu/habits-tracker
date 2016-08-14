@@ -2,7 +2,6 @@ package habits
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/parnurzeal/gorequest"
 	"strconv"
@@ -42,7 +41,7 @@ func RefreshGoogleToken(refreshToken, clientID, clientSecret string) string {
 		return successfulResponse.AccessToken
 	}
 
-	CheckErr(errors.New(fmt.Sprintf("RefreshGoogleToken. Status Code: %d", resp.StatusCode)))
+	CheckErr(fmt.Errorf("RefreshGoogleToken. StatusCode: %d", resp.StatusCode))
 
 	return ""
 
@@ -72,7 +71,7 @@ func RequestSheetValues(token, spreadsheetID, sheetID string) [][]string {
 		return values.Values
 	}
 
-	CheckErr(errors.New(fmt.Sprintf("RequestSheetValues. Status Code: ", resp.StatusCode)))
+	CheckErr(fmt.Errorf("RequestSheetValues. Status Code: ", resp.StatusCode))
 
 	return [][]string{[]string{""}}
 }

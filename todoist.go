@@ -2,10 +2,8 @@ package habits
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/parnurzeal/gorequest"
-	"strconv"
 	"time"
 )
 
@@ -71,7 +69,7 @@ func GetResources(todoistToken string) (TodoistGetResourceResponse, []error) {
 		return todoistResponse, nil
 	}
 
-	return TodoistGetResourceResponse{}, []error{errors.New("Response not OK. Status Code: " + strconv.Itoa(resp.StatusCode))}
+	return TodoistGetResourceResponse{}, []error{fmt.Errorf("Response not OK. Status Code: %d", resp.StatusCode)}
 
 }
 
