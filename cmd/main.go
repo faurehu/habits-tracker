@@ -88,7 +88,7 @@ func main() {
 	programmedHabits := [][]string{}
 
 	// We will need tomorrow's dates
-	tomorrow := habits.DateToString(time.Now().AddDate(0, 0, 1))
+	tomorrow := time.Now().AddDate(0, 0, 1).Format(habits.DateFormat)
 	for index, project := range habitsMainSpreadsheet {
 		if tomorrow == project[4] {
 			programmedHabits = append(programmedHabits, project)

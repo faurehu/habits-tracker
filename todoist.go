@@ -98,7 +98,7 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) {
 	projectAddArgs := argsSchema{Name: "Habits", Indent: 1}
 	createProject := commandSchema{Type: "project_add", UUID: getUUID(0), Args: projectAddArgs, TemporaryName: "habits_project"}
 
-	firstIndentArgs := argsSchema{Content: DateToString(time.Now().AddDate(0, 0, 1)), Indent: 1, ProjectID: "habits_project"}
+	firstIndentArgs := argsSchema{Content: time.Now().AddDate(0, 0, 1).Format(DateFormat), Indent: 1, ProjectID: "habits_project"}
 	createFirstIndent := commandSchema{Type: "item_add", UUID: getUUID(1), Args: firstIndentArgs, TemporaryName: "firstindent"}
 
 	commands := []commandSchema{createProject, createFirstIndent}

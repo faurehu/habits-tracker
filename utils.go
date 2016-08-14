@@ -1,9 +1,7 @@
 package habits
 
-import (
-	"fmt"
-	"time"
-)
+// DateFormat to convert dates to strings
+const DateFormat = "1 January 2016"
 
 // Errors struct to implement the error interface.
 type Errors struct {
@@ -42,10 +40,4 @@ func StringIndexOf(slice []string, element string) int {
 		}
 	}
 	return -1
-}
-
-// DateToString will return the string for the date of a given time.
-func DateToString(givenTime time.Time) string {
-	year, month, day := givenTime.Date()
-	return fmt.Sprintf("%d %s %d", day, month, year)
 }

@@ -158,7 +158,7 @@ func UpdateHabit(index int, project []string, token, spreadsheetID string) {
 		nextIteration = tomorrow.AddDate(interval, 0, 0)
 	}
 
-	project[4] = DateToString(nextIteration)
+	project[4] = nextIteration.Format(DateFormat)
 	sheetRange := fmt.Sprintf("Habits!%d:%d", index+1, index+1)
 	PutSheetValues(project, sheetRange, token, spreadsheetID)
 }
@@ -168,7 +168,7 @@ func calculatePeriod(frequency string) string {
 	year := today.Year()
 	switch {
 	case frequency == "day":
-		return DateToString(today)
+		return today.Format(DateFormat)
 	case frequency == "week":
 		_, week := today.ISOWeek()
 		return fmt.Sprintf("%d %d", week, year)
