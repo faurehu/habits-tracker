@@ -109,7 +109,7 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) {
 		commands = append(commands, addHabitCommand)
 
 		if habit[3] != "" {
-			reminderArgs := argsSchema{DateString: habit[3], ItemID: habitID}
+			reminderArgs := argsSchema{DateString: fmt.Sprintf("tomorrow at %s", habit[3]), ItemID: habitID}
 			reminderCommand := commandSchema{Type: "reminder_add", UUID: getUUID((index+2)*2 + 1), Args: reminderArgs}
 			commands = append(commands, reminderCommand)
 		}
