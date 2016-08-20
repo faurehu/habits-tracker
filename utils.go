@@ -1,7 +1,7 @@
 package habits
 
 // DateFormat to convert dates to strings
-const DateFormat = "1 January 2016"
+const DateFormat = "2 January 2006"
 
 // Errors struct to implement the error interface.
 type Errors struct {

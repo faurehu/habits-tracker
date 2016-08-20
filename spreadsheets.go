@@ -1,9 +1,11 @@
 package habits
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/parnurzeal/gorequest"
+	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -14,70 +16,72 @@ var (
 )
 
 // RefreshGoogleToken will pass refreshToken to Google to get the Access Token
-func RefreshGoogleToken(refreshToken, clientID, clientSecret string) string {
+func RefreshGoogleToken(refreshToken, clientID, clientSecret string) (string, error) {
 
 	type RefreshTokenResponse struct {
 		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		ExpiresIn   int    `json:"expires_in"`
 	}
 
-	request := gorequest.New()
+	form := url.Values{"refresh_token": {refreshToken}, "client_id": {clientID}, "client_secret": {clientSecret}, "grant_type": {"refresh_token"}}
 
-	resp, body, errs := request.Post(refreshTokenURL).
-		Param("refresh_token", refreshToken).
-		Param("client_id", clientID).
-		Param("client_secret", clientSecret).
-		Param("grant_type", "refresh_token").
-		End()
+	resp, err := http.PostForm(refreshTokenURL, form)
 
-	CheckErrs(errs)
-
-	if resp.StatusCode == 200 {
-		var successfulResponse RefreshTokenResponse
-		byteArray := []byte(body)
-		err := json.Unmarshal(byteArray, &successfulResponse)
-		CheckErr(err)
-		return successfulResponse.AccessToken
+	if err != nil {
+		return "", err
 	}
 
-	CheckErr(fmt.Errorf("RefreshGoogleToken. StatusCode: %d", resp.StatusCode))
+	defer resp.Body.Close()
 
-	return ""
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("Bad status code: %d", resp.StatusCode)
+	}
 
+	var rtr RefreshTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rtr); err != nil {
+		return "", err
+	}
+
+	return rtr.AccessToken, nil
 }
 
 // RequestSheetValues will get the resources from Spreadsheet's API
-func RequestSheetValues(token, spreadsheetID, sheetID string) [][]string {
+func RequestSheetValues(token, spreadsheetID, sheetID string) ([][]string, error) {
 
 	type SheetValues struct {
 		Values [][]string `json:"values"`
 	}
 
-	request := gorequest.New()
+	cookedURL := fmt.Sprintf("%s/%s/values/%s", spreadsheetURL, spreadsheetID, sheetID)
 
-	resp, body, errs := request.Get(fmt.Sprintf("%s/%s/values/%s",
-		spreadsheetURL, spreadsheetID, sheetID)).
-		Set("Authorization", "Bearer "+token).
-		End()
+	r, err := http.NewRequest("GET", cookedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("Authorization", "Bearer "+token)
 
-	CheckErrs(errs)
+	client := http.Client{}
+	resp, err := client.Do(r)
 
-	if resp.StatusCode == 200 {
-		var values SheetValues
-		byteArray := []byte(body)
-		err := json.Unmarshal(byteArray, &values)
-		CheckErr(err)
-		return values.Values
+	if err != nil {
+		return nil, err
 	}
 
-	CheckErr(fmt.Errorf("RequestSheetValues. Status Code: ", resp.StatusCode))
+	defer resp.Body.Close()
 
-	return [][]string{[]string{""}}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Bad status code: %d", resp.StatusCode)
+	}
+
+	var v SheetValues
+	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+		return nil, err
+	}
+
+	return v.Values, nil
 }
 
 // PutSheetValues will update the cells in the spreadsheet in a given range
-func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) {
+func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) error {
 
 	type putDataSchema struct {
 		Values         [1][]string `json:"values"`
@@ -89,21 +93,39 @@ func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) {
 
 	jsonData, err := json.Marshal(putData)
 
-	CheckErr(err)
+	if err != nil {
+		return err
+	}
 
-	request := gorequest.New()
+	cookedURL := fmt.Sprintf("%s/%s/values/%s", spreadsheetURL, spreadsheetID, sheetRange)
 
-	_, _, errs := request.Put(fmt.Sprintf("%s/%s/values/%s", spreadsheetURL, spreadsheetID, sheetRange)).
-		Set("Authorization", "Bearer "+token).
-		Param("valueInputOption", "RAW").
-		Send(string(jsonData)).
-		End()
+	r, err := http.NewRequest("PUT", cookedURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	r.Header.Set("Authorization", "Bearer "+token)
+	q := r.URL.Query()
+	q.Add("valueInputOption", "RAW")
+	r.URL.RawQuery = q.Encode()
 
-	CheckErrs(errs)
+	client := http.Client{}
+	resp, err := client.Do(r)
+
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // StoreResults will append a row to your Spreadsheet resource with the day's results.
-func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem, spreadsheet [][]string) {
+func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem, spreadsheet [][]string) error {
 	// Create an new array with the same number of columns as a row in the spreadsheet.
 	row := make([]string, len(spreadsheet[0]))
 
@@ -130,11 +152,12 @@ func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem,
 	sheetRange := fmt.Sprintf("%s!%d:%d", frequency, rowIndex, rowIndex)
 
 	// Store the row in the spreadsheet!
-	PutSheetValues(row, sheetRange, token, spreadsheetID)
+	err := PutSheetValues(row, sheetRange, token, spreadsheetID)
+	return err
 }
 
 // UpdateHabit will update the next iteration of a habit
-func UpdateHabit(index int, project []string, token, spreadsheetID string) {
+func UpdateHabit(index int, project []string, token, spreadsheetID string) error {
 	var interval int
 	tomorrow := time.Now().AddDate(0, 0, 1)
 
@@ -160,7 +183,8 @@ func UpdateHabit(index int, project []string, token, spreadsheetID string) {
 
 	project[4] = nextIteration.Format(DateFormat)
 	sheetRange := fmt.Sprintf("Habits!%d:%d", index+1, index+1)
-	PutSheetValues(project, sheetRange, token, spreadsheetID)
+	err := PutSheetValues(project, sheetRange, token, spreadsheetID)
+	return err
 }
 
 func calculatePeriod(frequency string) string {

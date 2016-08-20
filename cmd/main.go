@@ -30,16 +30,22 @@ func main() {
 	habits.CheckErr(err)
 
 	// First of all, refresh Google Token.
-	token := habits.RefreshGoogleToken(config.RefreshToken, config.ClientID, config.ClientSecret)
+	token, err := habits.RefreshGoogleToken(config.RefreshToken, config.ClientID, config.ClientSecret)
+
+	habits.CheckErr(err)
 
 	// Let's load our current database.
-	habitsMainSpreadsheet := habits.RequestSheetValues(token, config.SpreadsheetID, "Habits")
+	habitsMainSpreadsheet, err := habits.RequestSheetValues(token, config.SpreadsheetID, "Habits")
+
+	habits.CheckErr(err)
 
 	// A map of key frequency and values results and spreadsheet will help keep everything tidy
 	frequencies := [4]string{"day", "week", "month", "year"}
 	frequencyMap := map[string]Frequency{}
 	for _, frequency := range frequencies {
-		frequencyMap[frequency] = Frequency{Spreadsheet: habits.RequestSheetValues(token, config.SpreadsheetID, frequency), Results: []habits.TodoistItem{}}
+		spreadsheet, err := habits.RequestSheetValues(token, config.SpreadsheetID, frequency)
+		habits.CheckErr(err)
+		frequencyMap[frequency] = Frequency{Spreadsheet: spreadsheet, Results: []habits.TodoistItem{}}
 	}
 
 	// A map of habit name: habit row will be useful, let's build it.
@@ -51,8 +57,8 @@ func main() {
 	// It's 11:30pm, let's load the results from Todoist. Each slice contains items of their respective frequency.
 
 	// First, we get all of the items and projects from Todoist.
-	todoistResponse, errs := habits.GetResources(config.TodoistToken)
-	habits.CheckErrs(errs)
+	todoistResponse, err := habits.GetResources(config.TodoistToken)
+	habits.CheckErr(err)
 
 	// Find the Habits project.
 	var habitsProject habits.TodoistProject
@@ -77,12 +83,14 @@ func main() {
 	for _, frequency := range frequencies {
 		frequencyRecord := frequencyMap[frequency]
 		if len(frequencyRecord.Results) > 0 {
-			habits.StoreResults(token, config.SpreadsheetID, frequency, frequencyRecord.Results, frequencyRecord.Spreadsheet)
+			err := habits.StoreResults(token, config.SpreadsheetID, frequency, frequencyRecord.Results, frequencyRecord.Spreadsheet)
+			habits.CheckErr(err)
 		}
 	}
 
 	// At this point we can safely remove today's items from Todoist.
-	habits.DeleteProject(habitsProject.ID, config.TodoistToken)
+	err = habits.DeleteProject(habitsProject.ID, config.TodoistToken)
+	habits.CheckErr(err)
 
 	// Build tomorrow's items
 	programmedHabits := [][]string{}
@@ -92,10 +100,12 @@ func main() {
 	for index, project := range habitsMainSpreadsheet {
 		if tomorrow == project[4] {
 			programmedHabits = append(programmedHabits, project)
-			habits.UpdateHabit(index, project, token, config.SpreadsheetID)
+			err = habits.UpdateHabit(index, project, token, config.SpreadsheetID)
+			habits.CheckErr(err)
 		}
 	}
 
 	// Finally, send these to Todoist
-	habits.CreateHabitTasks(programmedHabits, config.TodoistToken)
+	err = habits.CreateHabitTasks(programmedHabits, config.TodoistToken)
+	habits.CheckErr(err)
 }

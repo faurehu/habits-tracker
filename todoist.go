@@ -3,7 +3,10 @@ package habits
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/parnurzeal/gorequest"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
 	"time"
 )
 
@@ -49,52 +52,69 @@ type commandSchema struct {
 }
 
 // GetResources will fetch the resources from Todoist API
-func GetResources(todoistToken string) (TodoistGetResourceResponse, []error) {
+func GetResources(todoistToken string) (TodoistGetResourceResponse, error) {
 
-	request := gorequest.New()
+	form := url.Values{"token": {todoistToken}, "resource_types": {"[\"projects\", \"items\"]"}, "sync_token": {"*"}}
 
-	resp, body, errs := request.Get(todoistAPIURL).
-		Param("token", todoistToken).
-		Param("resource_types", "[\"projects\", \"items\"]").
-		Param("sync_token", "*").
-		End()
+	resp, err := http.PostForm(todoistAPIURL, form)
 
-	CheckErrs(errs)
-
-	if resp.StatusCode == 200 {
-		var todoistResponse TodoistGetResourceResponse
-		byteArray := []byte(body)
-		err := json.Unmarshal(byteArray, &todoistResponse)
-		CheckErr(err)
-		return todoistResponse, nil
+	if err != nil {
+		return TodoistGetResourceResponse{}, err
 	}
 
-	return TodoistGetResourceResponse{}, []error{fmt.Errorf("Response not OK. Status Code: %d", resp.StatusCode)}
+	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return TodoistGetResourceResponse{}, fmt.Errorf("Bad status code: %d", resp.StatusCode)
+	}
+
+	var tgrr TodoistGetResourceResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tgrr); err != nil {
+		return TodoistGetResourceResponse{}, err
+	}
+
+	return tgrr, nil
 }
 
 // DeleteProject will destroy the project with given ID
-func DeleteProject(ID int, todoistToken string) {
+func DeleteProject(ID int, todoistToken string) error {
 
 	args := argsSchema{IDS: []int{ID}}
-	commands := []commandSchema{commandSchema{Type: "project_delete", UUID: "random_string", Args: args}}
+	commands := []commandSchema{commandSchema{Type: "project_delete", UUID: "random_string", Args: args, TemporaryName: "deletedproject"}}
 	commandsJSON, err := json.Marshal(commands)
 
-	CheckErr(err)
+	if err != nil {
+		return err
+	}
 
-	request := gorequest.New()
+	r, err := http.NewRequest("POST", todoistAPIURL, nil)
+	if err != nil {
+		return err
+	}
+	q := r.URL.Query()
+	q.Add("token", todoistToken)
+	q.Add("commands", string(commandsJSON))
+	r.URL.RawQuery = q.Encode()
 
-	_, _, errs := request.Post(todoistAPIURL).
-		Param("token", todoistToken).
-		Param("commands", string(commandsJSON)).
-		End()
+	client := http.Client{}
+	resp, err := client.Do(r)
+	if err != nil {
+		return err
+	}
 
-	CheckErrs(errs)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // CreateHabitTasks posts the day's tasks to Todoist
-func CreateHabitTasks(programmedHabits [][]string, todoistToken string) {
+func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
 
+	time.Sleep(5 * time.Second)
 	projectAddArgs := argsSchema{Name: "Habits", Indent: 1}
 	createProject := commandSchema{Type: "project_add", UUID: getUUID(0), Args: projectAddArgs, TemporaryName: "habits_project"}
 
@@ -116,18 +136,34 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) {
 	}
 
 	commandsJSON, err := json.Marshal(commands)
-	jsonString := string(commandsJSON)
 
-	CheckErr(err)
+	if err != nil {
+		return err
+	}
 
-	request := gorequest.New()
+	r, err := http.NewRequest("POST", todoistAPIURL, nil)
+	if err != nil {
+		return err
+	}
+	q := r.URL.Query()
+	q.Add("token", todoistToken)
+	q.Add("commands", string(commandsJSON))
+	r.URL.RawQuery = q.Encode()
 
-	_, _, errs := request.Post(todoistAPIURL).
-		Param("token", todoistToken).
-		Param("commands", jsonString).
-		End()
+	client := http.Client{}
+	resp, err := client.Do(r)
 
-	CheckErrs(errs)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 func getUUID(index int) string {
