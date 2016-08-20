@@ -39,13 +39,11 @@ func run() error {
 		return errors.Wrap(err, "couldn't open config file")
 	}
 
-	decoder := json.NewDecoder(file)
-	config := Configuration{}
-
 	err = decoder.Decode(&config)
-	if err != nil {
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
 		return errors.Wrap(err, "could not decode config file content")
 	}
+
 	// First of all, refresh Google Token.
 	token, err := RefreshGoogleToken(config.RefreshToken, config.ClientID, config.ClientSecret)
 	if err != nil {
