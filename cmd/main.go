@@ -2,14 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"habits"
+	"github.com/faurehu/habittracker"
 	"os"
 	"time"
 )
 
 type Frequency struct {
 	Spreadsheet [][]string
-	Results     []habits.TodoistItem
+	Results     []habittracker.TodoistItem
 }
 
 type Configuration struct {
@@ -23,29 +23,29 @@ type Configuration struct {
 func main() {
 	// Load the configuration
 	file, err := os.Open("config.json")
-	habits.CheckErr(err)
+	habittracker.CheckErr(err)
 	decoder := json.NewDecoder(file)
 	config := Configuration{}
 	err = decoder.Decode(&config)
-	habits.CheckErr(err)
+	habittracker.CheckErr(err)
 
 	// First of all, refresh Google Token.
-	token, err := habits.RefreshGoogleToken(config.RefreshToken, config.ClientID, config.ClientSecret)
+	token, err := habittracker.RefreshGoogleToken(config.RefreshToken, config.ClientID, config.ClientSecret)
 
-	habits.CheckErr(err)
+	habittracker.CheckErr(err)
 
 	// Let's load our current database.
-	habitsMainSpreadsheet, err := habits.RequestSheetValues(token, config.SpreadsheetID, "Habits")
+	habitsMainSpreadsheet, err := habittracker.RequestSheetValues(token, config.SpreadsheetID, "Habits")
 
-	habits.CheckErr(err)
+	habittracker.CheckErr(err)
 
 	// A map of key frequency and values results and spreadsheet will help keep everything tidy
 	frequencies := [4]string{"day", "week", "month", "year"}
 	frequencyMap := map[string]Frequency{}
 	for _, frequency := range frequencies {
-		spreadsheet, err := habits.RequestSheetValues(token, config.SpreadsheetID, frequency)
-		habits.CheckErr(err)
-		frequencyMap[frequency] = Frequency{Spreadsheet: spreadsheet, Results: []habits.TodoistItem{}}
+		spreadsheet, err := habittracker.RequestSheetValues(token, config.SpreadsheetID, frequency)
+		habittracker.CheckErr(err)
+		frequencyMap[frequency] = Frequency{Spreadsheet: spreadsheet, Results: []habittracker.TodoistItem{}}
 	}
 
 	// A map of habit name: habit row will be useful, let's build it.
@@ -57,11 +57,11 @@ func main() {
 	// It's 11:30pm, let's load the results from Todoist. Each slice contains items of their respective frequency.
 
 	// First, we get all of the items and projects from Todoist.
-	todoistResponse, err := habits.GetResources(config.TodoistToken)
-	habits.CheckErr(err)
+	todoistResponse, err := habittracker.GetResources(config.TodoistToken)
+	habittracker.CheckErr(err)
 
 	// Find the Habits project.
-	var habitsProject habits.TodoistProject
+	var habitsProject habittracker.TodoistProject
 	for _, project := range todoistResponse.Projects {
 		if project.Name == "Habits" {
 			habitsProject = project
@@ -83,29 +83,29 @@ func main() {
 	for _, frequency := range frequencies {
 		frequencyRecord := frequencyMap[frequency]
 		if len(frequencyRecord.Results) > 0 {
-			err := habits.StoreResults(token, config.SpreadsheetID, frequency, frequencyRecord.Results, frequencyRecord.Spreadsheet)
-			habits.CheckErr(err)
+			err := habittracker.StoreResults(token, config.SpreadsheetID, frequency, frequencyRecord.Results, frequencyRecord.Spreadsheet)
+			habittracker.CheckErr(err)
 		}
 	}
 
 	// At this point we can safely remove today's items from Todoist.
-	err = habits.DeleteProject(habitsProject.ID, config.TodoistToken)
-	habits.CheckErr(err)
+	err = habittracker.DeleteProject(habitsProject.ID, config.TodoistToken)
+	habittracker.CheckErr(err)
 
 	// Build tomorrow's items
 	programmedHabits := [][]string{}
 
 	// We will need tomorrow's dates
-	tomorrow := time.Now().AddDate(0, 0, 1).Format(habits.DateFormat)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format(habittracker.DateFormat)
 	for index, project := range habitsMainSpreadsheet {
 		if tomorrow == project[4] {
 			programmedHabits = append(programmedHabits, project)
-			err = habits.UpdateHabit(index, project, token, config.SpreadsheetID)
-			habits.CheckErr(err)
+			err = habittracker.UpdateHabit(index, project, token, config.SpreadsheetID)
+			habittracker.CheckErr(err)
 		}
 	}
 
 	// Finally, send these to Todoist
-	err = habits.CreateHabitTasks(programmedHabits, config.TodoistToken)
-	habits.CheckErr(err)
+	err = habittracker.CreateHabitTasks(programmedHabits, config.TodoistToken)
+	habittracker.CheckErr(err)
 }

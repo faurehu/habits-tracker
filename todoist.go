@@ -1,12 +1,10 @@
-package habits
+package habittracker
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 )
 

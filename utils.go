@@ -1,4 +1,4 @@
-package habits
+package habittracker
 
 // DateFormat to convert dates to strings
 const DateFormat = "2 January 2006"
