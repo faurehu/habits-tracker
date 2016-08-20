@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var (
@@ -25,9 +27,8 @@ func RefreshGoogleToken(refreshToken, clientID, clientSecret string) (string, er
 	form := url.Values{"refresh_token": {refreshToken}, "client_id": {clientID}, "client_secret": {clientSecret}, "grant_type": {"refresh_token"}}
 
 	resp, err := http.PostForm(refreshTokenURL, form)
-
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "could not make request")
 	}
 
 	defer resp.Body.Close()
@@ -38,7 +39,7 @@ func RefreshGoogleToken(refreshToken, clientID, clientSecret string) (string, er
 
 	var rtr RefreshTokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&rtr); err != nil {
-		return "", err
+		return "", errors.Wrap(err, "could not decode response body")
 	}
 
 	return rtr.AccessToken, nil
@@ -55,15 +56,14 @@ func RequestSheetValues(token, spreadsheetID, sheetID string) ([][]string, error
 
 	r, err := http.NewRequest("GET", cookedURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not build request")
 	}
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	client := http.Client{}
 	resp, err := client.Do(r)
-
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not make request")
 	}
 
 	defer resp.Body.Close()
@@ -74,7 +74,7 @@ func RequestSheetValues(token, spreadsheetID, sheetID string) ([][]string, error
 
 	var v SheetValues
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not decode response body")
 	}
 
 	return v.Values, nil
@@ -92,16 +92,15 @@ func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) error
 	putData := putDataSchema{Values: [1][]string{row}, Range: sheetRange, MajorDimension: "ROWS"}
 
 	jsonData, err := json.Marshal(putData)
-
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not marshal data")
 	}
 
 	cookedURL := fmt.Sprintf("%s/%s/values/%s", spreadsheetURL, spreadsheetID, sheetRange)
 
 	r, err := http.NewRequest("PUT", cookedURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not build request")
 	}
 	r.Header.Set("Authorization", "Bearer "+token)
 	q := r.URL.Query()
@@ -110,9 +109,8 @@ func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) error
 
 	client := http.Client{}
 	resp, err := client.Do(r)
-
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not make request")
 	}
 
 	defer resp.Body.Close()
@@ -153,7 +151,11 @@ func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem,
 
 	// Store the row in the spreadsheet!
 	err := PutSheetValues(row, sheetRange, token, spreadsheetID)
-	return err
+	if err != nil {
+		return errors.Wrap(err, "could not send data to Spreadsheets API")
+	}
+
+	return nil
 }
 
 // UpdateHabit will update the next iteration of a habit
@@ -165,7 +167,10 @@ func UpdateHabit(index int, project []string, token, spreadsheetID string) error
 		interval = 1
 	} else {
 		_interval, err := strconv.Atoi(project[2])
-		CheckErr(err)
+		if err != nil {
+			return errors.Wrap(err, "could not convert sheet data to integer")
+		}
+
 		interval = _interval
 	}
 
@@ -183,8 +188,13 @@ func UpdateHabit(index int, project []string, token, spreadsheetID string) error
 
 	project[4] = nextIteration.Format(DateFormat)
 	sheetRange := fmt.Sprintf("Habits!%d:%d", index+1, index+1)
+
 	err := PutSheetValues(project, sheetRange, token, spreadsheetID)
-	return err
+	if err != nil {
+		return errors.Wrap(err, "could not send data to Spreadsheets API")
+	}
+
+	return nil
 }
 
 func calculatePeriod(frequency string) string {

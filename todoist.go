@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var (
@@ -55,9 +57,8 @@ func GetResources(todoistToken string) (TodoistGetResourceResponse, error) {
 	form := url.Values{"token": {todoistToken}, "resource_types": {"[\"projects\", \"items\"]"}, "sync_token": {"*"}}
 
 	resp, err := http.PostForm(todoistAPIURL, form)
-
 	if err != nil {
-		return TodoistGetResourceResponse{}, err
+		return TodoistGetResourceResponse{}, errors.Wrap(err, "could not make post")
 	}
 
 	defer resp.Body.Close()
@@ -68,7 +69,7 @@ func GetResources(todoistToken string) (TodoistGetResourceResponse, error) {
 
 	var tgrr TodoistGetResourceResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tgrr); err != nil {
-		return TodoistGetResourceResponse{}, err
+		return TodoistGetResourceResponse{}, errors.Wrap(err, "could not decode JSON")
 	}
 
 	return tgrr, nil
@@ -79,16 +80,17 @@ func DeleteProject(ID int, todoistToken string) error {
 
 	args := argsSchema{IDS: []int{ID}}
 	commands := []commandSchema{commandSchema{Type: "project_delete", UUID: "random_string", Args: args, TemporaryName: "deletedproject"}}
-	commandsJSON, err := json.Marshal(commands)
 
+	commandsJSON, err := json.Marshal(commands)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not marshal command data")
 	}
 
 	r, err := http.NewRequest("POST", todoistAPIURL, nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not construct a request")
 	}
+
 	q := r.URL.Query()
 	q.Add("token", todoistToken)
 	q.Add("commands", string(commandsJSON))
@@ -97,7 +99,7 @@ func DeleteProject(ID int, todoistToken string) error {
 	client := http.Client{}
 	resp, err := client.Do(r)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not make request")
 	}
 
 	defer resp.Body.Close()
@@ -134,15 +136,15 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
 	}
 
 	commandsJSON, err := json.Marshal(commands)
-
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not marshal commands data")
 	}
 
 	r, err := http.NewRequest("POST", todoistAPIURL, nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not build request")
 	}
+
 	q := r.URL.Query()
 	q.Add("token", todoistToken)
 	q.Add("commands", string(commandsJSON))
@@ -150,9 +152,8 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
 
 	client := http.Client{}
 	resp, err := client.Do(r)
-
 	if err != nil {
-		return err
+		return errors.Wrap(err, "could not make request")
 	}
 
 	defer resp.Body.Close()

@@ -2,17 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // DateFormat to convert dates to strings
 const DateFormat = "2 January 2006"
 
-// CheckErr will handle errors.
-func CheckErr(err error) {
-	if err != nil {
-		panic(err)
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -29,31 +32,40 @@ type Configuration struct {
 	TodoistToken  string
 }
 
-func main() {
+func run() error {
 	// Load the configuration
 	file, err := os.Open("config.json")
-	CheckErr(err)
+	if err != nil {
+		return errors.Wrap(err, "couldn't open config file")
+	}
+
 	decoder := json.NewDecoder(file)
 	config := Configuration{}
-	err = decoder.Decode(&config)
-	CheckErr(err)
 
+	err = decoder.Decode(&config)
+	if err != nil {
+		return errors.Wrap(err, "could not decode config file content")
+	}
 	// First of all, refresh Google Token.
 	token, err := RefreshGoogleToken(config.RefreshToken, config.ClientID, config.ClientSecret)
-
-	CheckErr(err)
+	if err != nil {
+		return errors.Wrap(err, "could not refresh Google API token")
+	}
 
 	// Let's load our current database.
 	habitsMainSpreadsheet, err := RequestSheetValues(token, config.SpreadsheetID, "Habits")
-
-	CheckErr(err)
+	if err != nil {
+		return errors.Wrap(err, "could not fetch Sheets API data")
+	}
 
 	// A map of key frequency and values results and spreadsheet will help keep everything tidy
 	frequencies := [4]string{"day", "week", "month", "year"}
 	frequencyMap := map[string]Frequency{}
 	for _, frequency := range frequencies {
 		spreadsheet, err := RequestSheetValues(token, config.SpreadsheetID, frequency)
-		CheckErr(err)
+		if err != nil {
+			return errors.Wrap(err, "could not fetch Sheets API data")
+		}
 		frequencyMap[frequency] = Frequency{Spreadsheet: spreadsheet, Results: []TodoistItem{}}
 	}
 
@@ -67,8 +79,9 @@ func main() {
 
 	// First, we get all of the items and projects from Todoist.
 	todoistResponse, err := GetResources(config.TodoistToken)
-	CheckErr(err)
-
+	if err != nil {
+		return errors.Wrap(err, "could not fetch Todoist API data")
+	}
 	// Find the Habits project.
 	var habitsProject TodoistProject
 	for _, project := range todoistResponse.Projects {
@@ -93,14 +106,17 @@ func main() {
 		frequencyRecord := frequencyMap[frequency]
 		if len(frequencyRecord.Results) > 0 {
 			err := StoreResults(token, config.SpreadsheetID, frequency, frequencyRecord.Results, frequencyRecord.Spreadsheet)
-			CheckErr(err)
+			if err != nil {
+				return errors.Wrap(err, "could not store results in Sheets API")
+			}
 		}
 	}
 
 	// At this point we can safely remove today's items from Todoist.
 	err = DeleteProject(habitsProject.ID, config.TodoistToken)
-	CheckErr(err)
-
+	if err != nil {
+		return errors.Wrap(err, "could not delete Todoist project")
+	}
 	// Build tomorrow's items
 	programmedHabits := [][]string{}
 
@@ -109,12 +125,19 @@ func main() {
 	for index, project := range habitsMainSpreadsheet {
 		if tomorrow == project[4] {
 			programmedHabits = append(programmedHabits, project)
+
 			err = UpdateHabit(index, project, token, config.SpreadsheetID)
-			CheckErr(err)
+			if err != nil {
+				return errors.Wrap(err, "could not update habits in the Sheets API")
+			}
 		}
 	}
 
 	// Finally, send these to Todoist
 	err = CreateHabitTasks(programmedHabits, config.TodoistToken)
-	CheckErr(err)
+	if err != nil {
+		return errors.Wrap(err, "could not send habits to Todoist API")
+	}
+
+	return nil
 }
