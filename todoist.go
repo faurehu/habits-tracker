@@ -1,4 +1,4 @@
-package habittracker
+package main
 
 import (
 	"encoding/json"

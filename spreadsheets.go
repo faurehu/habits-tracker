@@ -1,4 +1,4 @@
-package habittracker
+package main
 
 import (
 	"bytes"
@@ -134,7 +134,7 @@ func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem,
 
 	// We search the index of each item and assign result to the determined column.
 	for _, item := range results {
-		columnIndex := StringIndexOf(spreadsheet[0], item.Content)
+		columnIndex := stringIndexOf(spreadsheet[0], item.Content)
 		if item.Checked == 1 {
 			row[columnIndex] = "pass"
 		} else {
@@ -200,4 +200,13 @@ func calculatePeriod(frequency string) string {
 		return fmt.Sprintf("%s %d", today.Month(), year)
 	}
 	return fmt.Sprintf("%d", year)
+}
+
+func stringIndexOf(slice []string, element string) int {
+	for index, item := range slice {
+		if item == element {
+			return index
+		}
+	}
+	return -1
 }
