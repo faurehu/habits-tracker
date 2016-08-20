@@ -129,6 +129,8 @@ func run() error {
 			}
 
 			nextIteration[index] = calculatedIteration
+		} else {
+			nextIteration[index] = project[4]
 		}
 	}
 
