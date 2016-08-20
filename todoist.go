@@ -62,7 +62,7 @@ func GetResources(todoistToken string) (TodoistGetResourceResponse, error) {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return TodoistGetResourceResponse{}, fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
@@ -102,7 +102,7 @@ func DeleteProject(ID int, todoistToken string) error {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
@@ -157,7 +157,7 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 

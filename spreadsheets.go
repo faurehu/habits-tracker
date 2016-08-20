@@ -32,7 +32,7 @@ func RefreshGoogleToken(refreshToken, clientID, clientSecret string) (string, er
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
@@ -68,7 +68,7 @@ func RequestSheetValues(token, spreadsheetID, sheetID string) ([][]string, error
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
@@ -117,7 +117,7 @@ func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) error
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
