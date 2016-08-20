@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -81,7 +80,7 @@ func RequestSheetValues(token, spreadsheetID, sheetID string) ([][]string, error
 }
 
 // PutSheetValues will update the cells in the spreadsheet in a given range
-func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) error {
+func PutSheetValues(row []string, sheetRange, dimension, token, spreadsheetID string) error {
 
 	type putDataSchema struct {
 		Values         [1][]string `json:"values"`
@@ -89,7 +88,7 @@ func PutSheetValues(row []string, sheetRange, token, spreadsheetID string) error
 		MajorDimension string      `json:"majorDimension"`
 	}
 
-	putData := putDataSchema{Values: [1][]string{row}, Range: sheetRange, MajorDimension: "ROWS"}
+	putData := putDataSchema{Values: [1][]string{row}, Range: sheetRange, MajorDimension: dimension}
 
 	jsonData, err := json.Marshal(putData)
 	if err != nil {
@@ -150,46 +149,7 @@ func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem,
 	sheetRange := fmt.Sprintf("%s!%d:%d", frequency, rowIndex, rowIndex)
 
 	// Store the row in the spreadsheet!
-	err := PutSheetValues(row, sheetRange, token, spreadsheetID)
-	if err != nil {
-		return errors.Wrap(err, "could not send data to Spreadsheets API")
-	}
-
-	return nil
-}
-
-// UpdateHabit will update the next iteration of a habit
-func UpdateHabit(index int, project []string, token, spreadsheetID string) error {
-	var interval int
-	tomorrow := time.Now().AddDate(0, 0, 1)
-
-	if project[2] == "" {
-		interval = 1
-	} else {
-		_interval, err := strconv.Atoi(project[2])
-		if err != nil {
-			return errors.Wrap(err, "could not convert sheet data to integer")
-		}
-
-		interval = _interval
-	}
-
-	var nextIteration time.Time
-	switch {
-	case project[1] == "day":
-		nextIteration = tomorrow.AddDate(0, 0, interval)
-	case project[1] == "week":
-		nextIteration = tomorrow.AddDate(0, 0, interval*7)
-	case project[1] == "month":
-		nextIteration = tomorrow.AddDate(0, interval, 0)
-	case project[1] == "year":
-		nextIteration = tomorrow.AddDate(interval, 0, 0)
-	}
-
-	project[4] = nextIteration.Format(DateFormat)
-	sheetRange := fmt.Sprintf("Habits!%d:%d", index+1, index+1)
-
-	err := PutSheetValues(project, sheetRange, token, spreadsheetID)
+	err := PutSheetValues(row, sheetRange, "ROW", token, spreadsheetID)
 	if err != nil {
 		return errors.Wrap(err, "could not send data to Spreadsheets API")
 	}

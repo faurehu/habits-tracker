@@ -4,20 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
 )
 
-// DateFormat to convert dates to strings
+// Date Format is the format for the dates layout
 const DateFormat = "2 January 2006"
-
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-}
 
 type Frequency struct {
 	Spreadsheet [][]string
@@ -32,16 +26,18 @@ type Configuration struct {
 	TodoistToken  string
 }
 
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func run() error {
 	// Load the configuration
-	file, err := os.Open("config.json")
+	config, err := loadConfig()
 	if err != nil {
-		return errors.Wrap(err, "couldn't open config file")
-	}
-
-	err = decoder.Decode(&config)
-	if err := json.NewDecoder(file).Decode(&config); err != nil {
-		return errors.Wrap(err, "could not decode config file content")
+		return errors.Wrap(err, "could not load configuration")
 	}
 
 	// First of all, refresh Google Token.
@@ -120,15 +116,26 @@ func run() error {
 
 	// We will need tomorrow's dates
 	tomorrow := time.Now().AddDate(0, 0, 1).Format(DateFormat)
+	nextIteration := make([]string, len(habitsMainSpreadsheet))
+
 	for index, project := range habitsMainSpreadsheet {
 		if tomorrow == project[4] {
 			programmedHabits = append(programmedHabits, project)
 
-			err = UpdateHabit(index, project, token, config.SpreadsheetID)
+			// We calculate the next iteration
+			calculatedIteration, err := calculateNextIteration(project)
 			if err != nil {
-				return errors.Wrap(err, "could not update habits in the Sheets API")
+				return errors.Wrap(err, "could not calculate next iteration")
 			}
+
+			nextIteration[index] = calculatedIteration
 		}
+	}
+
+	// We send the next iterations column to the habits database
+	err = PutSheetValues(nextIteration, "Habits!E:E", "COLUMNS", token, config.SpreadsheetID)
+	if err != nil {
+		return errors.Wrap(err, "could not update habits in the Sheets API")
 	}
 
 	// Finally, send these to Todoist
@@ -138,4 +145,47 @@ func run() error {
 	}
 
 	return nil
+}
+
+func loadConfig() (Configuration, error) {
+	file, err := os.Open("config.json")
+	if err != nil {
+		return Configuration{}, errors.Wrap(err, "couldn't open config file")
+	}
+
+	var config Configuration
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
+		return Configuration{}, errors.Wrap(err, "could not decode config file content")
+	}
+	return config, nil
+}
+
+func calculateNextIteration(project []string) (string, error) {
+	var interval int
+	tomorrow := time.Now().AddDate(0, 0, 1)
+
+	if project[2] == "" {
+		interval = 1
+	} else {
+		_interval, err := strconv.Atoi(project[2])
+		if err != nil {
+			return "", errors.Wrap(err, "could not convert sheet data to integer")
+		}
+
+		interval = _interval
+	}
+
+	var nextIteration time.Time
+	switch {
+	case project[1] == "day":
+		nextIteration = tomorrow.AddDate(0, 0, interval)
+	case project[1] == "week":
+		nextIteration = tomorrow.AddDate(0, 0, interval*7)
+	case project[1] == "month":
+		nextIteration = tomorrow.AddDate(0, interval, 0)
+	case project[1] == "year":
+		nextIteration = tomorrow.AddDate(interval, 0, 0)
+	}
+
+	return nextIteration.Format(DateFormat), nil
 }
