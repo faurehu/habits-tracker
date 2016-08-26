@@ -23,10 +23,11 @@ type TodoistProject struct {
 
 // TodoistItem represents a Todoist Item
 type TodoistItem struct {
-	ProjectID int    `json:"project_id"`
-	Content   string `json:"content"`
-	Indent    int    `json:"indent"`
-	Checked   int    `json:"checked"`
+	DateString string `json:"date_string"`
+	ProjectID  int    `json:"project_id"`
+	Content    string `json:"content"`
+	Indent     int    `json:"indent"`
+	Checked    int    `json:"checked"`
 }
 
 // TodoistGetResourceResponse represents the response from Todoist API
@@ -130,7 +131,7 @@ func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
 	for index, habit := range programmedHabits {
 		habitID := fmt.Sprintf("habit-%d", index)
 
-		habitArgs := argsSchema{Content: habit[0], Indent: 2, ProjectID: projectID}
+		habitArgs := argsSchema{Content: habit[0], Indent: 2, ProjectID: projectID, DateString: "tomorrow"}
 		addHabitCommand := commandSchema{Type: "item_add", UUID: getUUID((index + 2) * 2), Args: habitArgs, TemporaryName: habitID}
 		habitCommands := []commandSchema{addHabitCommand}
 
