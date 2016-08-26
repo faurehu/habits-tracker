@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -79,7 +82,76 @@ func GetResources(todoistToken string) (TodoistGetResourceResponse, error) {
 func DeleteProject(ID int, todoistToken string) error {
 
 	args := argsSchema{IDS: []int{ID}}
-	commands := []commandSchema{commandSchema{Type: "project_delete", UUID: "random_string", Args: args, TemporaryName: "deletedproject"}}
+	commands := []commandSchema{commandSchema{Type: "project_delete", UUID: "random_string", Args: args, TemporaryName: "deleted_project"}}
+
+	return postCommands(commands, todoistToken)
+}
+
+// CreateProject will create a Project and return it's id
+func CreateProject(todoistToken string) error {
+
+	projectAddArgs := argsSchema{Name: "Habits", Indent: 1}
+	createProject := commandSchema{Type: "project_add", UUID: getUUID(0), Args: projectAddArgs, TemporaryName: "project_id"}
+
+	firstIndentArgs := argsSchema{Content: time.Now().AddDate(0, 0, 1).Format(DateFormat), Indent: 1, ProjectID: "project_id"}
+	createFirstIndent := commandSchema{Type: "item_add", UUID: getUUID(1), Args: firstIndentArgs, TemporaryName: "first_indent"}
+
+	commands := []commandSchema{createProject, createFirstIndent}
+	err := postCommands(commands, todoistToken)
+	return err
+}
+
+func findHabitProject(todoistToken string) (string, error) {
+	todoistResponse, err := GetResources(todoistToken)
+	if err != nil {
+		return "", errors.Wrap(err, "could not fetch Todoist API data")
+	}
+
+	for _, project := range todoistResponse.Projects {
+		if project.Name == "Habits" {
+			return strconv.Itoa(project.ID), nil
+		}
+	}
+
+	return "", fmt.Errorf("could not find Habit project")
+}
+
+// CreateHabitTasks posts the day's tasks to Todoist
+func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
+
+	err := CreateProject(todoistToken)
+	if err != nil {
+		return err
+	}
+
+	projectID, err := findHabitProject(todoistToken)
+	if err != nil {
+		return err
+	}
+
+	for index, habit := range programmedHabits {
+		habitID := fmt.Sprintf("habit-%d", index)
+
+		habitArgs := argsSchema{Content: habit[0], Indent: 2, ProjectID: projectID}
+		addHabitCommand := commandSchema{Type: "item_add", UUID: getUUID((index + 2) * 2), Args: habitArgs, TemporaryName: habitID}
+		habitCommands := []commandSchema{addHabitCommand}
+
+		if habit[3] != "" {
+			reminderArgs := argsSchema{DateString: fmt.Sprintf("tomorrow at %s", habit[3]), ItemID: habitID}
+			reminderCommand := commandSchema{Type: "reminder_add", UUID: getUUID((index+2)*2 + 1), Args: reminderArgs, TemporaryName: habitID + "r"}
+			habitCommands = append(habitCommands, reminderCommand)
+		}
+
+		err := postCommands(habitCommands, todoistToken)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func postCommands(commands []commandSchema, todoistToken string) error {
 
 	commandsJSON, err := json.Marshal(commands)
 	if err != nil {
@@ -108,61 +180,9 @@ func DeleteProject(ID int, todoistToken string) error {
 		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
-	return nil
-}
+	_, err = io.Copy(os.Stdout, resp.Body)
 
-// CreateHabitTasks posts the day's tasks to Todoist
-func CreateHabitTasks(programmedHabits [][]string, todoistToken string) error {
-
-	time.Sleep(5 * time.Second)
-	projectAddArgs := argsSchema{Name: "Habits", Indent: 1}
-	createProject := commandSchema{Type: "project_add", UUID: getUUID(0), Args: projectAddArgs, TemporaryName: "habits_project"}
-
-	firstIndentArgs := argsSchema{Content: time.Now().AddDate(0, 0, 1).Format(DateFormat), Indent: 1, ProjectID: "habits_project"}
-	createFirstIndent := commandSchema{Type: "item_add", UUID: getUUID(1), Args: firstIndentArgs, TemporaryName: "firstindent"}
-
-	commands := []commandSchema{createProject, createFirstIndent}
-	for index, habit := range programmedHabits {
-		habitID := fmt.Sprintf("habit%d", index)
-		habitArgs := argsSchema{Content: habit[0], Indent: 2, ProjectID: "habits_project"}
-		addHabitCommand := commandSchema{Type: "item_add", UUID: getUUID((index + 2) * 2), Args: habitArgs, TemporaryName: habitID}
-		commands = append(commands, addHabitCommand)
-
-		if habit[3] != "" {
-			reminderArgs := argsSchema{DateString: fmt.Sprintf("tomorrow at %s", habit[3]), ItemID: habitID}
-			reminderCommand := commandSchema{Type: "reminder_add", UUID: getUUID((index+2)*2 + 1), Args: reminderArgs}
-			commands = append(commands, reminderCommand)
-		}
-	}
-
-	commandsJSON, err := json.Marshal(commands)
-	if err != nil {
-		return errors.Wrap(err, "could not marshal commands data")
-	}
-
-	r, err := http.NewRequest("POST", todoistAPIURL, nil)
-	if err != nil {
-		return errors.Wrap(err, "could not build request")
-	}
-
-	q := r.URL.Query()
-	q.Add("token", todoistToken)
-	q.Add("commands", string(commandsJSON))
-	r.URL.RawQuery = q.Encode()
-
-	client := http.Client{}
-	resp, err := client.Do(r)
-	if err != nil {
-		return errors.Wrap(err, "could not make request")
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
-	}
-
-	return nil
+	return err
 }
 
 func getUUID(index int) string {

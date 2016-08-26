@@ -30,6 +30,8 @@ func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
+	} else {
+		fmt.Println("success")
 	}
 }
 
@@ -52,8 +54,8 @@ func run() error {
 		return errors.Wrap(err, "could not fetch Sheets API data")
 	}
 
-	// A map of key frequency and values results and spreadsheet will help keep everything tidy
 	frequencies := [4]string{"day", "week", "month", "year"}
+	// A map of key frequency and values results and spreadsheet will help keep everything tidy
 	frequencyMap := map[string]Frequency{}
 	for _, frequency := range frequencies {
 		spreadsheet, err := RequestSheetValues(token, config.SpreadsheetID, frequency)
