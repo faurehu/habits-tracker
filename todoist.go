@@ -180,9 +180,7 @@ func postCommands(commands []commandSchema, todoistToken string) error {
 		return fmt.Errorf("Bad status code: %d", resp.StatusCode)
 	}
 
-	_, err = io.Copy(os.Stdout, resp.Body)
-
-	return err
+	return nil
 }
 
 func getUUID(index int) string {

@@ -149,7 +149,7 @@ func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem,
 	sheetRange := fmt.Sprintf("%s!%d:%d", frequency, rowIndex, rowIndex)
 
 	// Store the row in the spreadsheet!
-	err := PutSheetValues(row, sheetRange, "ROW", token, spreadsheetID)
+	err := PutSheetValues(row, sheetRange, "ROWS", token, spreadsheetID)
 	if err != nil {
 		return errors.Wrap(err, "could not send data to Spreadsheets API")
 	}
