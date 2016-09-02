@@ -141,8 +141,8 @@ func StoreResults(token, spreadsheetID, frequency string, results []TodoistItem,
 
 	rowIndex := len(spreadsheet)
 	// If the period of the last row of the spreadsheet is different to today's period, our produced row will be new and appended.
-	if spreadsheet[len(spreadsheet)-1][0] != row[0] {
-		rowIndex = len(spreadsheet) + 1
+	if spreadsheet[rowIndex-1][0] != row[0] {
+		rowIndex += 1
 	}
 
 	// Compose the range
