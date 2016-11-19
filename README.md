@@ -26,5 +26,14 @@ If you want help to set this up for yourself, mail me at hi@faure.hu
 
 It's impossible to set a habit for the last date of the month. If set to August 31st, a month iteration will set it to October 1st. Have this in consideration in February.
 
+### Hosting:
+Build the Go files into a binary:
+
+```
+OS=linux GOARCH=amd64 go build test.go
+```
+
+Compress the binary, `index.js` and config.json into a zip file and upload it to AWS Lambda.
+
 ### Motivation:
 Todoist is a great To Do application and it supports iterative items but at the moment it is not possible to set reminders for every new iteration. I have been meaning to learn Go and play with AWS Lambdas so I decided this would be a fitting project.
